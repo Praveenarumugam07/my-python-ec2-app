@@ -5,9 +5,9 @@ env:
     CODEARTIFACT_DOMAIN: "pr-domain"
     CODEARTIFACT_REPO: "pr-repo"
     REGION: "ap-south-1"
-    DOMAIN_OWNER: "YOUR_ACCOUNT_ID"
-    EC2_PUBLIC_IP: "YOUR_EC2_PUBLIC_IP"
-    EC2_USER: "ubuntu"
+    DOMAIN_OWNER: "337243655832"
+    EC2_PUBLIC_IP: "3.110.130.25"
+    EC2_USER: "ec2-user"
     PARAM_NAME: "praveen-ec2-key"
     PACKAGE_NAME: "my-python-ec2-app"
 

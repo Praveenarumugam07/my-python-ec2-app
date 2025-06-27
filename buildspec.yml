@@ -7,7 +7,7 @@ env:
     REGION: "ap-south-1"
     DOMAIN_OWNER: "337243655832"
     EC2_PUBLIC_IP: "3.110.130.25"
-    EC2_USER: "ubuntu"
+    EC2_USER: "ec2-user"
     PARAM_NAME: "praveen-ec2-key"
     PACKAGE_NAME: "my-python-ec2-app"
 
@@ -40,10 +40,10 @@ phases:
       - twine upload --repository-url https://$CODEARTIFACT_DOMAIN-$DOMAIN_OWNER.d.codeartifact.$REGION.amazonaws.com/pypi/$CODEARTIFACT_REPO/ \
         -u aws -p $CODEARTIFACT_AUTH_TOKEN dist/*
 
-      - aws ssm get-parameter --name "$PARAM_NAME" --with-decryption --query Parameter.Value --output text > key.pem
-      - chmod 400 key.pem
+      - aws ssm get-parameter --name "$PARAM_NAME" --with-decryption --query Parameter.Value --output text > ec2-key.pem
+      - chmod 400 ec2-key.pem
 
-      - ssh -o StrictHostKeyChecking=no -i key.pem $EC2_USER@$EC2_PUBLIC_IP << 'EOF'
+      - ssh -o StrictHostKeyChecking=no -i ec2-key.pem $EC2_USER@$EC2_PUBLIC_IP << 'EOF'
           sudo apt update
           sudo apt install -y python3-pip awscli
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)

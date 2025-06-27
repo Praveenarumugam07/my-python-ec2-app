@@ -2,25 +2,21 @@ version: 0.2
 
 env:
   variables:
-    CODEARTIFACT_DOMAIN: "praveen-domain"
-    CODEARTIFACT_REPO: "praveen-repo"
-    REGION: "ap-south-1"
-    DOMAIN_OWNER: "123456789012"  # Replace with your AWS Account ID
-    EC2_PUBLIC_IP: "3.111.222.333"  # Replace with your EC2 Public IP
-    EC2_USER: "ec2-user"
-    PARAM_NAME: "praveen-ec2-key"
-    PACKAGE_NAME: "my-python-ec2-app"
+    CODEARTIFACT_DOMAIN: "pr-domain"          # your CodeArtifact domain
+    CODEARTIFACT_REPO: "pr-repository"        # your CodeArtifact repository
+    REGION: "ap-south-1"                      # your AWS region
+    DOMAIN_OWNER: "337243655832"              # your AWS account ID
+    EC2_PUBLIC_IP: "3.110.130.25"             # replace with your EC2 public IP
+    EC2_USER: "ec2-user"                      # use 'ec2-user' for Amazon Linux; 'ubuntu' for Ubuntu AMIs
+    PARAM_NAME: "praveen-ec2-key"             # your SSM parameter name storing .pem key
+    PACKAGE_NAME: "my-python-ec2-app"         # your Python package name
 
 phases:
   install:
     runtime-versions:
       python: 3.11
     commands:
-      - echo "🔧 Installing/upgrading AWS CLI and Python tools..."
-      - curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-      - unzip awscliv2.zip
-      - sudo ./aws/install
-      - aws --version
+      - echo "🔧 Installing build tools..."
       - pip install --upgrade pip
       - pip install build twine
 
@@ -30,7 +26,7 @@ phases:
       - echo "🔎 DEBUG: CODEARTIFACT_DOMAIN=$CODEARTIFACT_DOMAIN"
       - echo "🔎 DEBUG: DOMAIN_OWNER=$DOMAIN_OWNER"
       - echo "🔎 DEBUG: REGION=$REGION"
-      - echo "🔧 Logging into CodeArtifact..."
+      - echo "🔐 Authenticating to CodeArtifact..."
       - aws codeartifact login --tool twine \
           --repository $CODEARTIFACT_REPO \
           --domain $CODEARTIFACT_DOMAIN \
@@ -39,12 +35,12 @@ phases:
 
   build:
     commands:
-      - echo "🏗️ Building the Python package..."
+      - echo "⚙️ Building Python package..."
       - python -m build
 
   post_build:
     commands:
-      - echo "🔧 Fetching CodeArtifact auth token..."
+      - echo "🔑 Fetching CodeArtifact authorization token..."
       - export CODEARTIFACT_AUTH_TOKEN=$(aws codeartifact get-authorization-token \
           --domain $CODEARTIFACT_DOMAIN \
           --domain-owner $DOMAIN_OWNER \
@@ -56,28 +52,36 @@ phases:
       - twine upload --repository-url https://$CODEARTIFACT_DOMAIN-$DOMAIN_OWNER.d.codeartifact.$REGION.amazonaws.com/pypi/$CODEARTIFACT_REPO/ \
           -u aws -p $CODEARTIFACT_AUTH_TOKEN dist/*
 
-      - echo "🔒 Fetching SSH key from SSM Parameter Store..."
+      - echo "🔐 Fetching SSH key from SSM Parameter Store..."
       - aws ssm get-parameter --name "$PARAM_NAME" --with-decryption --query Parameter.Value --output text > key.pem
       - chmod 400 key.pem
 
-      - echo "⚡ Deploying to EC2 and installing package from CodeArtifact..."
-      - ssh -o StrictHostKeyChecking=no -i key.pem $EC2_USER@$EC2_PUBLIC_IP << 'EOF'
-          echo "🔧 Updating EC2 packages and installing pip/awscli if missing..."
-          sudo apt update
-          sudo apt install -y python3-pip awscli
+      - echo "💻 Deploying to EC2 and installing package from CodeArtifact..."
+      - |
+        ssh -o StrictHostKeyChecking=no -i key.pem $EC2_USER@$EC2_PUBLIC_IP << 'EOF'
+          echo "🔧 Installing AWS CLI and pip on EC2 if not present..."
+          if ! command -v aws &> /dev/null; then
+            sudo yum install -y awscli || sudo apt install -y awscli
+          fi
+          if ! command -v pip &> /dev/null; then
+            sudo yum install -y python3-pip || sudo apt install -y python3-pip
+          fi
 
+          echo "🔑 Authenticating to CodeArtifact from EC2..."
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           CODEARTIFACT_AUTH_TOKEN=$(aws codeartifact get-authorization-token \
-            --domain praveen-domain \
-            --domain-owner $ACCOUNT_ID \
-            --region ap-south-1 \
+            --domain $CODEARTIFACT_DOMAIN \
+            --domain-owner $DOMAIN_OWNER \
+            --region $REGION \
             --query authorizationToken \
             --output text)
 
-          pip install --upgrade pip
-          pip install my-python-ec2-app --extra-index-url https://praveen-domain-$ACCOUNT_ID.d.codeartifact.ap-south-1.amazonaws.com/pypi/praveen-repo/simple/ \
-            --extra-index-url https://pypi.org/simple
+          echo "📦 Installing your package from CodeArtifact..."
+          pip install --extra-index-url https://$CODEARTIFACT_DOMAIN-$DOMAIN_OWNER.d.codeartifact.$REGION.amazonaws.com/pypi/$CODEARTIFACT_REPO/simple/ $PACKAGE_NAME
 
-          echo "✅ Running the app..."
-          myapp
+          echo "✅ Deployment completed on EC2."
         EOF
+
+artifacts:
+  files:
+    - '**/*'

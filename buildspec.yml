@@ -20,18 +20,14 @@ phases:
       - pip install build twine
 
   pre_build:
-    commands:               # ✅ FIXED: indentation corrected here
+    commands:
       - echo "====== DEBUG VARIABLES ======"
       - echo "CODEARTIFACT_REPO: $CODEARTIFACT_REPO"
       - echo "CODEARTIFACT_DOMAIN: $CODEARTIFACT_DOMAIN"
       - echo "DOMAIN_OWNER: $DOMAIN_OWNER"
       - echo "REGION: $REGION"
       - echo "=============================="
-      - aws codeartifact login --tool twine \
-          --repository $CODEARTIFACT_REPO \
-          --domain $CODEARTIFACT_DOMAIN \
-          --domain-owner $DOMAIN_OWNER \
-          --region $REGION
+      - aws codeartifact login --tool twine --repository $CODEARTIFACT_REPO --domain $CODEARTIFACT_DOMAIN --domain-owner $DOMAIN_OWNER --region $REGION
 
   build:
     commands:

@@ -2,14 +2,14 @@ version: 0.2
 
 env:
   variables:
-    CODEARTIFACT_DOMAIN: "pr-domain"          # your CodeArtifact domain
-    CODEARTIFACT_REPO: "pr-repository"        # your CodeArtifact repository
-    REGION: "ap-south-1"                      # your AWS region
-    DOMAIN_OWNER: "337243655832"              # your AWS account ID
-    EC2_PUBLIC_IP: "3.110.130.25"             # replace with your EC2 public IP
-    EC2_USER: "ec2-user"                      # use 'ec2-user' for Amazon Linux; 'ubuntu' for Ubuntu AMIs
-    PARAM_NAME: "praveen-ec2-key"             # your SSM parameter name storing .pem key
-    PACKAGE_NAME: "my-python-ec2-app"         # your Python package name
+    CODEARTIFACT_DOMAIN: "pr-domain"
+    CODEARTIFACT_REPO: "pr-repository"
+    REGION: "ap-south-1"
+    DOMAIN_OWNER: "337243655832"
+    EC2_PUBLIC_IP: "3.110.130.25"
+    EC2_USER: "ec2-user"
+    PARAM_NAME: "praveen-ec2-key"
+    PACKAGE_NAME: "my-python-ec2-app"
 
 phases:
   install:
@@ -27,11 +27,7 @@ phases:
       - echo "🔎 DEBUG: DOMAIN_OWNER=$DOMAIN_OWNER"
       - echo "🔎 DEBUG: REGION=$REGION"
       - echo "🔐 Authenticating to CodeArtifact..."
-      - aws codeartifact login --tool twine \
-          --repository $CODEARTIFACT_REPO \
-          --domain $CODEARTIFACT_DOMAIN \
-          --domain-owner $DOMAIN_OWNER \
-          --region $REGION
+      - aws codeartifact login --tool twine --repository $CODEARTIFACT_REPO --domain $CODEARTIFACT_DOMAIN --domain-owner $DOMAIN_OWNER --region $REGION
 
   build:
     commands:
@@ -41,16 +37,10 @@ phases:
   post_build:
     commands:
       - echo "🔑 Fetching CodeArtifact authorization token..."
-      - export CODEARTIFACT_AUTH_TOKEN=$(aws codeartifact get-authorization-token \
-          --domain $CODEARTIFACT_DOMAIN \
-          --domain-owner $DOMAIN_OWNER \
-          --region $REGION \
-          --query authorizationToken \
-          --output text)
+      - export CODEARTIFACT_AUTH_TOKEN=$(aws codeartifact get-authorization-token --domain $CODEARTIFACT_DOMAIN --domain-owner $DOMAIN_OWNER --region $REGION --query authorizationToken --output text)
 
       - echo "🚀 Uploading package to CodeArtifact..."
-      - twine upload --repository-url https://$CODEARTIFACT_DOMAIN-$DOMAIN_OWNER.d.codeartifact.$REGION.amazonaws.com/pypi/$CODEARTIFACT_REPO/ \
-          -u aws -p $CODEARTIFACT_AUTH_TOKEN dist/*
+      - twine upload --repository-url https://$CODEARTIFACT_DOMAIN-$DOMAIN_OWNER.d.codeartifact.$REGION.amazonaws.com/pypi/$CODEARTIFACT_REPO/ -u aws -p $CODEARTIFACT_AUTH_TOKEN dist/*
 
       - echo "🔐 Fetching SSH key from SSM Parameter Store..."
       - aws ssm get-parameter --name "$PARAM_NAME" --with-decryption --query Parameter.Value --output text > key.pem
@@ -69,12 +59,7 @@ phases:
 
           echo "🔑 Authenticating to CodeArtifact from EC2..."
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          CODEARTIFACT_AUTH_TOKEN=$(aws codeartifact get-authorization-token \
-            --domain $CODEARTIFACT_DOMAIN \
-            --domain-owner $DOMAIN_OWNER \
-            --region $REGION \
-            --query authorizationToken \
-            --output text)
+          CODEARTIFACT_AUTH_TOKEN=$(aws codeartifact get-authorization-token --domain $CODEARTIFACT_DOMAIN --domain-owner $DOMAIN_OWNER --region $REGION --query authorizationToken --output text)
 
           echo "📦 Installing your package from CodeArtifact..."
           pip install --extra-index-url https://$CODEARTIFACT_DOMAIN-$DOMAIN_OWNER.d.codeartifact.$REGION.amazonaws.com/pypi/$CODEARTIFACT_REPO/simple/ $PACKAGE_NAME

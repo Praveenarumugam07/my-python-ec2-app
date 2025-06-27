@@ -3,11 +3,11 @@ version: 0.2
 env:
   variables:
     CODEARTIFACT_DOMAIN: "pr-domain"
-    CODEARTIFACT_REPO: "pr-repository"
+    CODEARTIFACT_REPO: "pr-repo"
     REGION: "ap-south-1"
-    DOMAIN_OWNER: "337243655832"
-    EC2_PUBLIC_IP: "3.110.130.25"
-    EC2_USER: "ec2-user"
+    DOMAIN_OWNER: "YOUR_ACCOUNT_ID"
+    EC2_PUBLIC_IP: "YOUR_EC2_PUBLIC_IP"
+    EC2_USER: "ubuntu"
     PARAM_NAME: "praveen-ec2-key"
     PACKAGE_NAME: "my-python-ec2-app"
 
@@ -21,13 +21,11 @@ phases:
 
   pre_build:
     commands:
-      - echo "====== DEBUG VARIABLES ======"
-      - echo "CODEARTIFACT_REPO: $CODEARTIFACT_REPO"
-      - echo "CODEARTIFACT_DOMAIN: $CODEARTIFACT_DOMAIN"
-      - echo "DOMAIN_OWNER: $DOMAIN_OWNER"
-      - echo "REGION: $REGION"
-      - echo "=============================="
-      - aws codeartifact login --tool twine --repository $CODEARTIFACT_REPO --domain $CODEARTIFACT_DOMAIN --domain-owner $DOMAIN_OWNER --region $REGION
+      - aws codeartifact login --tool twine \
+        --repository $CODEARTIFACT_REPO \
+        --domain $CODEARTIFACT_DOMAIN \
+        --domain-owner $DOMAIN_OWNER \
+        --region $REGION
 
   build:
     commands:
@@ -35,16 +33,27 @@ phases:
 
   post_build:
     commands:
-      - export CODEARTIFACT_AUTH_TOKEN=$(aws codeartifact get-authorization-token --domain $CODEARTIFACT_DOMAIN --domain-owner $DOMAIN_OWNER --region $REGION --query authorizationToken --output text)
-      - twine upload --repository-url https://$CODEARTIFACT_DOMAIN-$DOMAIN_OWNER.d.codeartifact.$REGION.amazonaws.com/pypi/$CODEARTIFACT_REPO/ -u aws -p $CODEARTIFACT_AUTH_TOKEN dist/*
-      - aws ssm get-parameter --name "$PARAM_NAME" --with-decryption --query Parameter.Value --output text > ec2-key.pem
-      - chmod 400 ec2-key.pem
-      - ssh -o StrictHostKeyChecking=no -i ec2-key.pem $EC2_USER@$EC2_PUBLIC_IP << 'EOF'
+      - export CODEARTIFACT_AUTH_TOKEN=$(aws codeartifact get-authorization-token \
+          --domain $CODEARTIFACT_DOMAIN --domain-owner $DOMAIN_OWNER \
+          --region $REGION --query authorizationToken --output text)
+
+      - twine upload --repository-url https://$CODEARTIFACT_DOMAIN-$DOMAIN_OWNER.d.codeartifact.$REGION.amazonaws.com/pypi/$CODEARTIFACT_REPO/ \
+        -u aws -p $CODEARTIFACT_AUTH_TOKEN dist/*
+
+      - aws ssm get-parameter --name "$PARAM_NAME" --with-decryption --query Parameter.Value --output text > key.pem
+      - chmod 400 key.pem
+
+      - ssh -o StrictHostKeyChecking=no -i key.pem $EC2_USER@$EC2_PUBLIC_IP << 'EOF'
           sudo apt update
           sudo apt install -y python3-pip awscli
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          CODEARTIFACT_AUTH_TOKEN=$(aws codeartifact get-authorization-token --domain pr-domain --domain-owner $ACCOUNT_ID --region ap-south-1 --query authorizationToken --output text)
+          CODEARTIFACT_AUTH_TOKEN=$(aws codeartifact get-authorization-token \
+            --domain pr-domain \
+            --domain-owner $ACCOUNT_ID \
+            --region ap-south-1 \
+            --query authorizationToken --output text)
           pip install --upgrade pip
-          pip install my-python-ec2-app --extra-index-url https://pr-domain-$ACCOUNT_ID.d.codeartifact.ap-south-1.amazonaws.com/pypi/pr-repository/simple/ --extra-index-url https://pypi.org/simple
+          pip install my-python-ec2-app --extra-index-url https://pr-domain-$ACCOUNT_ID.d.codeartifact.ap-south-1.amazonaws.com/pypi/pr-repo/simple/ \
+            --extra-index-url https://pypi.org/simple
           myapp
         EOF

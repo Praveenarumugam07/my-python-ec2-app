@@ -22,10 +22,6 @@ phases:
 
   pre_build:
     commands:
-      - echo "🔎 DEBUG: CODEARTIFACT_REPO=$CODEARTIFACT_REPO"
-      - echo "🔎 DEBUG: CODEARTIFACT_DOMAIN=$CODEARTIFACT_DOMAIN"
-      - echo "🔎 DEBUG: DOMAIN_OWNER=$DOMAIN_OWNER"
-      - echo "🔎 DEBUG: REGION=$REGION"
       - echo "🔐 Authenticating to CodeArtifact..."
       - aws codeartifact login --tool twine --repository $CODEARTIFACT_REPO --domain $CODEARTIFACT_DOMAIN --domain-owner $DOMAIN_OWNER --region $REGION
 
@@ -36,35 +32,28 @@ phases:
 
   post_build:
     commands:
-      - echo "🔑 Fetching CodeArtifact authorization token..."
-      - export CODEARTIFACT_AUTH_TOKEN=$(aws codeartifact get-authorization-token --domain $CODEARTIFACT_DOMAIN --domain-owner $DOMAIN_OWNER --region $REGION --query authorizationToken --output text)
-
       - echo "🚀 Uploading package to CodeArtifact..."
+      - export CODEARTIFACT_AUTH_TOKEN=$(aws codeartifact get-authorization-token --domain $CODEARTIFACT_DOMAIN --domain-owner $DOMAIN_OWNER --region $REGION --query authorizationToken --output text)
       - twine upload --repository-url https://$CODEARTIFACT_DOMAIN-$DOMAIN_OWNER.d.codeartifact.$REGION.amazonaws.com/pypi/$CODEARTIFACT_REPO/ -u aws -p $CODEARTIFACT_AUTH_TOKEN dist/*
-
       - echo "🔐 Fetching SSH key from SSM Parameter Store..."
       - aws ssm get-parameter --name "$PARAM_NAME" --with-decryption --query Parameter.Value --output text > key.pem
       - chmod 400 key.pem
-
       - echo "💻 Deploying to EC2 and installing package from CodeArtifact..."
       - |
         ssh -o StrictHostKeyChecking=no -i key.pem $EC2_USER@$EC2_PUBLIC_IP << 'EOF'
-          echo "🔧 Installing AWS CLI and pip on EC2 if not present..."
+          echo "🔧 Installing AWS CLI and pip if missing..."
           if ! command -v aws &> /dev/null; then
             sudo yum install -y awscli || sudo apt install -y awscli
           fi
           if ! command -v pip &> /dev/null; then
             sudo yum install -y python3-pip || sudo apt install -y python3-pip
           fi
-
-          echo "🔑 Authenticating to CodeArtifact from EC2..."
+          echo "🔑 Authenticating to CodeArtifact..."
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           CODEARTIFACT_AUTH_TOKEN=$(aws codeartifact get-authorization-token --domain $CODEARTIFACT_DOMAIN --domain-owner $DOMAIN_OWNER --region $REGION --query authorizationToken --output text)
-
-          echo "📦 Installing your package from CodeArtifact..."
+          echo "📦 Installing package..."
           pip install --extra-index-url https://$CODEARTIFACT_DOMAIN-$DOMAIN_OWNER.d.codeartifact.$REGION.amazonaws.com/pypi/$CODEARTIFACT_REPO/simple/ $PACKAGE_NAME
-
-          echo "✅ Deployment completed on EC2."
+          echo "✅ Deployment complete."
         EOF
 
 artifacts:

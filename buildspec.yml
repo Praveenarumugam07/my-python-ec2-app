@@ -48,12 +48,12 @@ phases:
           sudo apt install -y python3-pip awscli
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           CODEARTIFACT_AUTH_TOKEN=$(aws codeartifact get-authorization-token \
-            --domain praveen-domain \
+            --domain pr-domain \
             --domain-owner $ACCOUNT_ID \
             --region ap-south-1 \
             --query authorizationToken --output text)
           pip install --upgrade pip
-          pip install my-python-ec2-app --extra-index-url https://praveen-domain-$ACCOUNT_ID.d.codeartifact.ap-south-1.amazonaws.com/pypi/praveen-repo/simple/ \
+          pip install my-python-ec2-app --extra-index-url https://pr-domain-$ACCOUNT_ID.d.codeartifact.ap-south-1.amazonaws.com/pypi/pr-repo/simple/ \
             --extra-index-url https://pypi.org/simple
           myapp
         EOF
